@@ -1,63 +1,90 @@
 package com.dengxq.jarslimming;
 
-import java.io.File;
-import java.util.HashSet;
-import java.util.Scanner;
-import java.util.Set;
-import java.util.Stack;
-
 import com.dengxq.jarslimming.core.GetImport;
 import com.dengxq.jarslimming.utils.FileUtils;
 import com.dengxq.jarslimming.utils.ZipUtils;
 
+import java.io.File;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.Stack;
 
+/**
+ * 入口类
+ */
 public class JarSlimming {
 
+    private static final String lastGenFileName = "lastGenInfo";
+
+    /**
+     *
+     * @param args 输入参数0： 原始jar文件     必填
+     *             输入参数1： 入口class      必填
+     *             输入参数2： 生成jar文件路径 选填
+     */
     public static void main(String[] args) {
         if (args.length < 2) {
             System.err.println("Useage:java -jar jarSlimming-1.0.jar <input_jarPath> <input_classPath> ");
             System.exit(1);
         }
-        String jarName = args[0]; //jar包原始路径
+        String jarPath = args[0]; //jar包原始路径
+        File srcJar = new File(jarPath);
+        if (!jarPath.contains(".jar") || !srcJar.exists() || !srcJar.isFile()) {
+            System.err.println(jarPath + " is not a correct jar file");
+            System.exit(1);
+        }
+        try {
+            jarPath = srcJar.getCanonicalPath();
+        } catch ( Exception e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
+        String baseDir = (new File(jarPath)).getParent();
+
         String rootClassPath = args[1]; //输入根节点
         String rootClassName = rootClassPath.substring(rootClassPath.lastIndexOf(".") + 1);//根文件class名
 
-        String rootPath = (new File(jarName)).getParent();
-        try {
-            rootPath = new File(rootPath).getCanonicalPath();
-        } catch ( Exception e) {
-            e.printStackTrace();
+        //输出文件路径可选
+        String outputJar;
+        if (args.length > 2) {
+            outputJar = args[2];
+        } else {
+            outputJar = baseDir + File.separator + rootClassName + ".jar";
         }
-        String copyFilepath = rootPath + File.separator + rootClassName;
-        String outputJar = copyFilepath + ".jar";
 
-        //判断输出文件是否存在，存在则询问是否覆盖。
+        //判断输出文件是否存在，存在则判断生成文件是否发生变化
         if ((new File(outputJar)).exists()) {
-            System.err.print(rootClassName + ".jar exists, continue? (Y or N)");
-            Scanner scan = new Scanner(System.in);
-            String str = scan.next();  // 接收数据
-            while (!"n".equals(str.toLowerCase()) && !"y".equals(str.toLowerCase())) {
-                System.out.println("Y to continue, N to exit." + str);
-                str = scan.next();
-            }
-            if ("n".equals(str.toLowerCase())) {
-                System.exit(1);
+            String lastGenInfo = FileUtils.readFromZipFile(outputJar, lastGenFileName);
+            String newInfo = jarPath + srcJar.lastModified();
+            if (newInfo.equals(lastGenInfo)) {
+                System.out.println(rootClassName + ".jar exists, exit");
+                System.out.println("output: " + outputJar);
+                System.exit(0);
+            } else {
+                System.out.println("newInfo = " + newInfo);
+                System.out.println("lastGenInfo = " + lastGenInfo);
+                System.out.println(rootClassName + ".jar modified, continue");
             }
         }
 
-        run(jarName, rootClassName, rootClassPath, copyFilepath, outputJar);
+        String copyFileDir = baseDir + File.separator + rootClassName + File.separator;
+        run(jarPath, rootClassName, rootClassPath, copyFileDir, outputJar);
     }
 
-    private static void run(String jarName, String rootClassName, String rootClassPath, String copyFilepath, String outputJar) {
-        System.out.println("start to analyse classes");
-        String unzipJarPath = FileUtils.unzipFile(jarName); //jar包解压路径
+    private static void run(String jarPath, String rootClassName, String rootClassPath, String copyFileDir, String outputJar) {
+        File srcJar = new File(jarPath);
+
+        System.out.println("start to analyse jar");
+        String unzipJarPath = jarPath.substring(0, jarPath.lastIndexOf(".")) + System.currentTimeMillis() + "/" ; //jar包解压路径
+        FileUtils.unzipFile(srcJar, unzipJarPath);
         Set<String> dependClasses = getAllDependClasses(rootClassName, rootClassPath, unzipJarPath);
 
         // 拷贝所有依赖class
         System.out.println("start to copy class files");
-        String copyFileDir = copyFilepath + File.separator;
+        int len = unzipJarPath.length();
         for (String string : dependClasses) {
-            String copyPath = copyFileDir + string.substring(unzipJarPath.length());
+            String copyPath = copyFileDir + string.substring(len);
             FileUtils.copyFile(string, copyPath);
         }
 
@@ -66,36 +93,53 @@ public class JarSlimming {
         FileUtils.copyDir(unzipJarPath, copyFileDir, true);
         FileUtils.delFolder(unzipJarPath);
 
+        //写入生成文件信息，下次运行时判断是否需要生成
+        String properFile = copyFileDir + lastGenFileName;
+        String content = jarPath + "\n" + srcJar.lastModified();
+        FileUtils.saveToFile(properFile, content);
+
         System.out.println("start to generate new jar");
         ZipUtils.doCompress(copyFileDir, outputJar);
         FileUtils.delFolder(copyFileDir);
 
-        System.err.println("output: " + outputJar);
+        System.out.println("output: " + outputJar);
     }
 
     /**
      * 获取所有依赖class
      * @param className 依赖文件名 根
-     * @param rootClassPath 依赖文件路径 根
+     * @param rootClassPath 依赖文件(包)路径 根
      * @param unzipJarPath jar包解压的根路径
      * @return
      */
     private static Set<String> getAllDependClasses(String className, String rootClassPath, String unzipJarPath) {
-        String rootPackage = unzipJarPath + rootClassPath.substring(0, rootClassPath.lastIndexOf(".")).replace(".", "/");
-
         Stack<String> stack = new Stack<>();
-        Set<String> resultFiles = new HashSet<>();
-        //列出所有主类生成的class文件
-        String[] files = (new File(rootPackage)).list();
-        if (files != null && files.length > 0) {
-            for (String file : files) {
-                if (file.startsWith(className) && file.endsWith(".class")) {
-                    String path = rootPackage + File.separator + file;
-                    stack.push(path);
+        String classDir =  unzipJarPath + rootClassPath.replace(".", "/");
+        File classDirFile = new File(classDir);
+        if (classDirFile.isDirectory()) {
+            List<String> files = FileUtils.getAllFiles(classDir);
+            if (files != null && files.size() > 0) {
+                for (String file : files) {
+                    if (file.endsWith(".class")) {
+                        stack.push(file);
+                    }
+                }
+            }
+        } else {
+            String rootPackage = classDirFile.getParent();
+            //列出所有主类生成的class文件
+            String[] files = classDirFile.getParentFile().list();
+            if (files != null && files.length > 0) {
+                for (String file : files) {
+                    if (file.startsWith(className) && file.endsWith(".class")) {
+                        String path = rootPackage + File.separator + file;
+                        stack.push(path);
+                    }
                 }
             }
         }
 
+        Set<String> resultFiles = new HashSet<>();
         while (!stack.isEmpty()) {
             String filePath = stack.pop();
             if ((new File(filePath)).exists()) {

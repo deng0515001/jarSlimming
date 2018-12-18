@@ -7,7 +7,7 @@ import java.util.Set;
 
 import com.dengxq.jarslimming.constant.Constant;
 import com.dengxq.jarslimming.utils.FileUtils;
-import com.dengxq.jarslimming.utils.Hex;
+import com.dengxq.jarslimming.utils.HexUtil;
 
 /**
  * 获取类的import列表
@@ -21,17 +21,17 @@ public class GetImport {
         start_pointer = 0;
 
         Set<String> fileSet = new HashSet<>();
-        byte[] data = FileUtils.getClassData(path);
+        byte[] data = FileUtils.getFileBytes(path);
         if (data == null) {
             return fileSet;
         }
 
-        hexString = Hex.byte2HexStr(data);
+        hexString = HexUtil.byte2HexStr(data);
 
         // 1.魔数,2.jvm 次版本 3.jvm 主版本
         String magic = cutString(8);
         // 4.常量池个数
-        int cp_count = Hex.hex2Integer(cutString(2));
+        int cp_count = Integer.parseInt(cutString(2), 16);
         // 5.常量池
         List<String> constantPoolMap = new ArrayList<>();
         for (int i = 0; i < cp_count - 1; i++) {
@@ -52,12 +52,12 @@ public class GetImport {
         if (tagHexString == null) {
             return;
         }
-        int tag = Hex.hex2Integer(tagHexString);
+        int tag = Integer.parseInt(tagHexString, 16);
         if (tag == Constant.constant_tag_utf8) {
             String lengthHexString = cutString(Constant.utf8_length_length);
-            int length = Hex.hex2Integer(lengthHexString);
+            int length = Integer.parseInt(lengthHexString, 16);
             String bytes = cutString(length * Constant.utf8_bytes_length);
-            String bytesString = Hex.hexStr2Str(bytes);
+            String bytesString = HexUtil.hexStr2Str(bytes);
             constant_pool_Map.add(bytesString);
         } else if (tag == Constant.constant_tag_int) {
             cutString(Constant.int_bytes_length);

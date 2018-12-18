@@ -1,15 +1,9 @@
 package com.dengxq.jarslimming.utils;
 
-import java.io.BufferedWriter;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
@@ -17,17 +11,16 @@ import java.util.zip.ZipInputStream;
 public class FileUtils {
 
     /**
-     * 获取class 文件的字节数组
+     * 获取文件的字节数组
      *
      * @param path
      * @return
      */
-    public static byte[] getClassData(String path) {
+    public static byte[] getFileBytes(String path) {
         InputStream iStream = null;
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         try {
             iStream = new FileInputStream(path);
-
             byte[] buffer = new byte[1024];
             int temp = 0;
             while ((temp = iStream.read(buffer)) != -1) {
@@ -59,14 +52,12 @@ public class FileUtils {
      * @param name 表信息
      * @param src  源代码
      */
-    public static void createFile(String name, String src) {
+    public static void saveToFile(String name, String src) {
         BufferedWriter bw = null;
         try {
             bw = new BufferedWriter(new FileWriter(name));
             bw.write(src);
             bw.flush();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
@@ -82,27 +73,22 @@ public class FileUtils {
 
     /**
      * 解压文件
-     *
-     * @param filePath
-     * @return 文件父文件目录
+     * @param file 待解压文件
+     * @param unzipPath 解压路径
      */
-    public static String unzipFile(String filePath) {
-        File file = new File(filePath);//压缩文件
+    public static void unzipFile(File file, String unzipPath) {
         try {
-            ZipFile zipFile = new ZipFile(file);//实例化ZipFile，每一个zip压缩文件都可以表示为一个ZipFile
-            //实例化一个Zip压缩文件的ZipInputStream对象，可以利用该类的getNextEntry()方法依次拿到每一个ZipEntry对象
+            ZipFile zipFile = new ZipFile(file);
             ZipInputStream zipInputStream = new ZipInputStream(new FileInputStream(file), Charset.forName("GBK"));
-            ZipEntry zipEntry = null;
-            filePath = file.getCanonicalPath();
-            String path = filePath.substring(0, filePath.lastIndexOf(".")) + "/";
-            while ((zipEntry = zipInputStream.getNextEntry()) != null) {
+            ZipEntry zipEntry = zipInputStream.getNextEntry();
+            while (zipEntry != null) {
                 if (zipEntry.isDirectory()) {
                     String name = zipEntry.getName();
                     name = name.substring(0, name.length() - 1);
-                    File f = new File(path + name);
+                    File f = new File(unzipPath + name);
                     f.mkdirs();
                 } else {
-                    File f = new File(path + zipEntry.getName());
+                    File f = new File(unzipPath + zipEntry.getName());
                     f.getParentFile().mkdirs();
                     f.createNewFile();
                     InputStream is = zipFile.getInputStream(zipEntry);
@@ -116,13 +102,12 @@ public class FileUtils {
                     is.close();
                     fos.close();
                 }
+                zipEntry = zipInputStream.getNextEntry();
             }
             zipInputStream.close();
-            return path;
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return "";
     }
 
     /**
@@ -183,8 +168,7 @@ public class FileUtils {
     public static void delFolder(String folderPath) {
         try {
             delAllFile(folderPath); //删除完里面所有内容
-            String filePath = folderPath;
-            File myFilePath = new File(filePath);
+            File myFilePath = new File(folderPath);
             myFilePath.delete(); //删除空文件夹
         } catch (Exception e) {
             e.printStackTrace();
@@ -219,6 +203,52 @@ public class FileUtils {
             }
         }
         return flag;
+    }
+
+    //获取指定文件夹下的所有文件
+    public static List<String> getAllFiles(String path) {
+        List<String> resultFiles = new ArrayList<>();
+        File file = new File(path);
+        if (!file.exists()) {
+            return resultFiles;
+        }
+        if (!file.isDirectory()) {
+            return resultFiles;
+        }
+
+        String[] tempList = file.list();
+        path = file.getPath();
+        if (tempList != null && tempList.length > 0) {
+            for (String tempFile : tempList) {
+                File temp = new File(path + File.separator + tempFile);
+                if (temp.isFile()) {
+                    resultFiles.add(temp.getPath());
+                }
+                if (temp.isDirectory()) {
+                    List<String> sub = getAllFiles(path + File.separator + tempFile);
+                    resultFiles.addAll(sub);
+                }
+            }
+        }
+        return resultFiles;
+    }
+
+    public static String readFromZipFile(String file, String fileName) {
+        try {
+            ZipFile zf = new ZipFile(file);
+            ZipEntry ze = zf.getEntry(fileName);
+            InputStream in = zf.getInputStream(ze);
+            BufferedReader br = new BufferedReader(new InputStreamReader(in));
+            String line;
+            StringBuilder result = new StringBuilder();
+            while ((line = br.readLine()) != null) {
+                result.append(line);
+            }
+            return result.toString();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
 }
