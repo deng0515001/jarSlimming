@@ -1,6 +1,7 @@
 # jarSlimming
 jar包瘦身，针对java， scala等生成的jar包，根据入口类优化，删除没有被引用的类，spark使用时效果明显
-remove unused class
+
+remove unused class from your jar
 
 
 使用方法：
