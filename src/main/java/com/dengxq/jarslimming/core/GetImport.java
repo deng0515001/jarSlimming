@@ -1,13 +1,13 @@
 package com.dengxq.jarslimming.core;
 
+import com.dengxq.jarslimming.constant.Constant;
+import com.dengxq.jarslimming.utils.FileUtils;
+import com.dengxq.jarslimming.utils.HexUtil;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
-import com.dengxq.jarslimming.constant.Constant;
-import com.dengxq.jarslimming.utils.FileUtils;
-import com.dengxq.jarslimming.utils.HexUtil;
 
 /**
  * 获取类的import列表
@@ -17,32 +17,32 @@ public class GetImport {
     private static int start_pointer = 0;
     private static String hexString = ""; // 十六进制数据总串
 
-    public static Set<String> getImports(String path, String basePath) {
+    public static Set<String> getImports(String jarPath, String classPath) {
         start_pointer = 0;
 
         Set<String> fileSet = new HashSet<>();
-        byte[] data = FileUtils.getFileBytes(path);
+        byte[] data = FileUtils.getBytesFromZipFile(jarPath, classPath);
         if (data == null) {
             return fileSet;
         }
 
         hexString = HexUtil.byte2HexStr(data);
 
-        // 1.魔数,2.jvm 次版本 3.jvm 主版本
+        // 1.魔数 2.jvm 次版本 3.jvm 主版本
         String magic = cutString(8);
         // 4.常量池个数
-        int cp_count = Integer.parseInt(cutString(2), 16);
+        int cpCount = Integer.parseInt(cutString(2), 16);
         // 5.常量池
         List<String> constantPoolMap = new ArrayList<>();
-        for (int i = 0; i < cp_count - 1; i++) {
+        for (int i = 0; i < cpCount - 1; i++) {
             getConstantUtf8(constantPoolMap);
         }
 
         Set<String> importSet = getImportStringList(constantPoolMap);
         for (String item : importSet) {
-            fileSet.add(basePath + item + ".class");
+            fileSet.add(item + ".class");
         }
-        fileSet.remove(path);//删除自己
+        fileSet.remove(classPath);//删除自己
         return fileSet;
     }
 
@@ -75,7 +75,7 @@ public class GetImport {
             cutString(Constant.filedRef_index_length);
             cutString(Constant.filedRef_index2_length);
         } else if (tag == Constant.constant_tag_methodRef) {
-            cutString(Constant.methodRef_index_length );
+            cutString(Constant.methodRef_index_length);
             cutString(Constant.methodRef_index2_length);
         } else if (tag == Constant.constant_tag_interfaceMethodRef) {
             cutString(Constant.interfaceMethodRef_index_length);
@@ -102,8 +102,9 @@ public class GetImport {
     private static Set<String> getImportStringList(List<String> constantUtf8List) {
         Set<String> set = new HashSet<String>();
         for (String info : constantUtf8List) {
-            if (info.contains("/") && !info.contains("(") && !info.startsWith("/")
-                    && !info.contains("<") && !info.contains(";") && !info.startsWith("java/lang/")) {
+            if (info.contains("/") && !info.contains("(") && !info.startsWith("/") && !info.startsWith(".")
+                    && !info.contains("<") && !info.contains(";") && !info.startsWith("java/lang/")
+                    && !info.endsWith(".class")) {
                 set.add(info);
             }
         }
