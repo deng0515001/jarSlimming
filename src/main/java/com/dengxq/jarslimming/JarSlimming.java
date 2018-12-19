@@ -4,6 +4,7 @@ import com.dengxq.jarslimming.core.GetImport;
 import com.dengxq.jarslimming.utils.FileUtils;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Set;
@@ -18,11 +19,11 @@ public class JarSlimming {
 
     /**
      * @param args 输入参数0： 原始jar文件     必填
-     *             输入参数1： 入口class      必填
+     *             输入参数1： 入口class      选填
      *             输入参数2： 生成jar文件路径 选填
      */
     public static void main(String[] args) {
-        if (args.length < 2) {
+        if (args.length < 1) {
             System.err.println("Useage:java -jar jarSlimming-1.0.jar <input_jarPath> <input_classPath> ");
             System.exit(1);
         }
@@ -40,37 +41,44 @@ public class JarSlimming {
         }
         String baseDir = (new File(jarPath)).getParent();
 
-        String rootClassPath = args[1]; //输入根节点
+        String mainClass;
+        if (args.length > 1) {
+            mainClass = args[1]; //输入根节点
+        } else {
+            mainClass = FileUtils.readMainClassFromJar(jarPath);
+        }
+        if (mainClass == null || mainClass.length() < 2) {
+            System.err.println("Useage:java -jar jarSlimming-1.0.jar <input_jarPath> <input_classPath> ");
+            System.exit(1);
+        }
 
         //输出文件路径可选
         String outputJar;
         if (args.length > 2) {
             outputJar = args[2];
         } else {
-            String rootClassName = rootClassPath.substring(rootClassPath.lastIndexOf(".") + 1);//根文件class名
+            String rootClassName = mainClass.substring(mainClass.lastIndexOf(".") + 1);//根文件class名
             outputJar = baseDir + File.separator + rootClassName + ".jar";
         }
 
         //判断输出文件是否存在，存在则判断生成文件是否发生变化
         if ((new File(outputJar)).exists()) {
-            String lastGenInfo = FileUtils.readInfoFromZipFile(outputJar);
+            String lastInfo = FileUtils.readInfoFromJar(outputJar);
             String newInfo = jarPath + srcJar.lastModified();
-            if (newInfo.equals(lastGenInfo)) {
+            if (newInfo.equals(lastInfo)) {
                 System.out.println(outputJar + " exists and src file not modify, exit");
                 System.out.println("output: " + outputJar);
                 System.exit(0);
             } else {
-                System.out.println("newInfo = " + newInfo);
-                System.out.println("lastGenInfo = " + lastGenInfo);
                 System.out.println(outputJar + " modified, continue");
             }
         }
 
         System.out.println("start to analyse jar");
-        Set<String> dependClasses = getAllDependClasses(jarPath, rootClassPath);
+        Set<String> dependClasses = getAllDependClasses(jarPath, mainClass);
 
         System.out.println("start to delete unused classes");
-        int deleteFileCount = FileUtils.deleteFromJar(jarPath, outputJar, dependClasses);
+        int deleteFileCount = FileUtils.generateJar(jarPath, outputJar, dependClasses, mainClass);
         System.out.println("total delete " + deleteFileCount + " unused class");
         System.out.println("output: " + outputJar);
     }
@@ -78,13 +86,13 @@ public class JarSlimming {
     /**
      * 获取所有依赖class
      *
-     * @param rootClassPath 依赖文件(包)路径 根
-     * @param jarPath       jar包路径
+     * @param mainClass 依赖文件(包)路径 根
+     * @param jarPath   jar包路径
      * @return
      */
-    private static Set<String> getAllDependClasses(String jarPath, String rootClassPath) {
+    private static Set<String> getAllDependClasses(String jarPath, String mainClass) {
         Stack<String> stack = new Stack<>();
-        String path = rootClassPath.replace(".", File.separator);
+        String path = mainClass.replace(".", File.separator);
         try {
             ZipFile zf = new ZipFile(jarPath);
             Enumeration<? extends ZipEntry> e = zf.entries();
@@ -94,7 +102,7 @@ public class JarSlimming {
                     stack.push(name);
                 }
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
 
