@@ -17,6 +17,12 @@ public class GetImport {
     private static int start_pointer = 0;
     private static String hexString = ""; // 十六进制数据总串
 
+    /**
+     * 获取import列表
+     * @param jarPath jar包路径
+     * @param classPath 输入类路径
+     * @return 输入类的所有class依赖，可能会存在冗余
+     */
     public static Set<String> getImports(String jarPath, String classPath) {
         start_pointer = 0;
 
@@ -46,7 +52,7 @@ public class GetImport {
         return fileSet;
     }
 
-    private static void getConstantUtf8(List<String> constant_pool_Map) {
+    private static void getConstantUtf8(List<String> constantPoolMap) {
         // 切分并初始化指针,根据常量的类型解析
         String tagHexString = cutString(1);
         if (tagHexString == null) {
@@ -58,7 +64,7 @@ public class GetImport {
             int length = Integer.parseInt(lengthHexString, 16);
             String bytes = cutString(length * Constant.utf8_bytes_length);
             String bytesString = HexUtil.hexStr2Str(bytes);
-            constant_pool_Map.add(bytesString);
+            constantPoolMap.add(bytesString);
         } else if (tag == Constant.constant_tag_int) {
             cutString(Constant.int_bytes_length);
         } else if (tag == Constant.constant_tag_float) {

@@ -16,6 +16,11 @@ public class FileUtils {
 
     private static final String lastGenFileName = "lastGenInfo";
 
+    /**
+     * 从zip文件中读取预留信息
+     * @param zipFile zip文件
+     * @return 预留信息
+     */
     public static String readInfoFromZipFile(String zipFile) {
         try {
             ZipFile zf = new ZipFile(zipFile);
@@ -30,6 +35,12 @@ public class FileUtils {
         return null;
     }
 
+    /**
+     * 从zip文件中读取某一个文件的字节流
+     * @param zipFile zip文件
+     * @param fileName 读取文件路径
+     * @return 字节流
+     */
     public static byte[] getBytesFromZipFile(String zipFile, String fileName) {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         try {
@@ -51,11 +62,16 @@ public class FileUtils {
         return null;
     }
 
-
+    /**
+     * 根据过滤策略删除部分文件，并生成新jar
+     * @param jarName 原始jar
+     * @param outputJarName 输出jar
+     * @param retains 保留策略
+     * @return 删除文件个数
+     */
     public static int deleteFromJar(String jarName, String outputJarName, Set<String> retains) {
         int deleteFileCount = 0;
         try {
-            //创建文件（根据备份文件并删除部分）
             JarFile jarFile = new JarFile(jarName);
             JarOutputStream jos = new JarOutputStream(new FileOutputStream(outputJarName));
             Enumeration<JarEntry> entries = jarFile.entries();

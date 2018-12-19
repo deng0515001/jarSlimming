@@ -82,7 +82,7 @@ public class JarSlimming {
      * @param jarPath       jar包路径
      * @return
      */
-    public static Set<String> getAllDependClasses(String jarPath, String rootClassPath) {
+    private static Set<String> getAllDependClasses(String jarPath, String rootClassPath) {
         Stack<String> stack = new Stack<>();
         String path = rootClassPath.replace(".", File.separator);
         try {
